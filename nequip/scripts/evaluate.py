@@ -10,6 +10,7 @@ from tqdm.auto import tqdm
 import ase.io
 
 import torch
+import torch.multiprocessing as mp
 
 from nequip.data import AtomicData, Collater, dataset_from_config, register_fields
 from nequip.scripts.deploy import load_deployed_model, R_MAX_KEY
@@ -21,6 +22,23 @@ from nequip.utils import load_file, instantiate, Config
 
 ORIGINAL_DATASET_INDEX_KEY: str = "original_dataset_index"
 register_fields(graph_fields=[ORIGINAL_DATASET_INDEX_KEY])
+
+
+def _output_writer(queue: mp.Queue, output, output_fields, type_mapper):
+    with open(output, "w") as f:
+        while True:
+            data = queue.get()
+            if data is None:
+                return
+            ase.io.write(
+                f,
+                data.to_ase(
+                    type_mapper=type_mapper,
+                    extra_fields=output_fields,
+                ),
+                format="extxyz",
+                append=True,
+            )
 
 
 def main(args=None, running_as_script: bool = True):
@@ -359,9 +377,17 @@ def main(args=None, running_as_script: bool = True):
             )
 
         if output_type is not None:
-            output = context_stack.enter_context(open(args.output, "w"))
-        else:
-            output = None
+            output_queue = mp.Queue()
+            output_process = mp.Process(
+                target=_output_writer,
+                args=(
+                    output_queue,
+                    args.output,
+                    args.output_fields,
+                    dataset.type_mapper,
+                ),
+            )
+            output_process.start()
 
         while True:
             this_batch_test_indexes = test_idcs[
@@ -382,16 +408,8 @@ def main(args=None, running_as_script: bool = True):
                         this_batch_test_indexes
                     )
                     # append to the file
-                    ase.io.write(
-                        output,
-                        AtomicData.from_AtomicDataDict(out)
-                        .to(device="cpu")
-                        .to_ase(
-                            type_mapper=dataset.type_mapper,
-                            extra_fields=args.output_fields,
-                        ),
-                        format="extxyz",
-                        append=True,
+                    output_queue.put(
+                        AtomicData.from_AtomicDataDict(out).to(device="cpu")
                     )
 
                 # Accumulate metrics
@@ -413,6 +431,10 @@ def main(args=None, running_as_script: bool = True):
         prog.close()
         if do_metrics:
             display_bar.close()
+
+        if output_type is not None:
+            output_queue.put(None)
+            output_process.join()
 
     if do_metrics:
         logger.info("\n--- Final result: ---")
