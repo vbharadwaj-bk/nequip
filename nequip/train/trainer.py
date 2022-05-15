@@ -685,12 +685,7 @@ class Trainer:
             initialize=False,
         )
         if model is not None:  # TODO: why would it be?
-            # TODO: this is not exactly equivalent to building with
-            # this set as default dtype... does it matter?
-            model.to(
-                device=torch.device(device),
-                dtype=dtype_from_name(config.default_dtype),
-            )
+            model.to(device=torch.device(device))
             model_state_dict = torch.load(
                 traindir + "/" + model_name, map_location=device
             )
