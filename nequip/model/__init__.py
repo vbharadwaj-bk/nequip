@@ -6,6 +6,7 @@ from ._weight_init import (
     initialize_from_state,
     load_model_state,
 )
+from ._dtype import ComputeDtypeWrapper
 
 from ._build import model_from_config
 
@@ -22,6 +23,7 @@ __all__ = [
     uniform_initialize_FCs,
     initialize_from_state,
     load_model_state,
+    ComputeDtypeWrapper,
     model_from_config,
     builder_utils,
 ]

@@ -42,6 +42,7 @@ from nequip.utils import (
 )
 from nequip.utils.versions import check_code_version
 from nequip.model import model_from_config
+from nequip.nn import ComputeDtypeWrapper
 
 from .loss import Loss, LossStat
 from .metrics import Metrics
@@ -709,6 +710,11 @@ class Trainer:
 
         self.rescale_layers = []
         outer_layer = self.model
+        if isinstance(outer_layer, ComputeDtypeWrapper):
+            # need to allow models wrapped with ComputeDtypeWrapper
+            # TODO: should this logic walk the module tree instead of hardcoding allowable wraps?
+            # TODO: add error if there are RescaleOutput modules in the tree this doesn't catch?
+            outer_layer = outer_layer.func
         while hasattr(outer_layer, "unscale"):
             self.rescale_layers.append(outer_layer)
             outer_layer = getattr(outer_layer, "model", None)

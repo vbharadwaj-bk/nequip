@@ -34,7 +34,8 @@ default_config = dict(
         "RescaleEnergyEtc",
     ],
     dataset_statistics_stride=1,
-    default_dtype="float32",
+    default_dtype="float64",
+    compute_dtype="float32",
     allow_tf32=False,  # TODO: until we understand equivar issues
     verbose="INFO",
     model_debug_mode=False,
