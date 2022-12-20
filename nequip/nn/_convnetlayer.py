@@ -10,16 +10,8 @@ from nequip.nn import (
     GraphModuleMixin,
     InteractionBlock,
 )
-from nequip.nn.nonlinearities import ShiftedSoftPlus
+from nequip.nn.nonlinearities import get_nonlinearity
 from nequip.utils.tp_utils import tp_path_exists
-
-
-acts = {
-    "abs": torch.abs,
-    "tanh": torch.tanh,
-    "ssp": ShiftedSoftPlus,
-    "silu": torch.nn.functional.silu,
-}
 
 
 class ConvNetLayer(GraphModuleMixin, torch.nn.Module):
@@ -96,15 +88,16 @@ class ConvNetLayer(GraphModuleMixin, torch.nn.Module):
             )
             irreps_gates = o3.Irreps([(mul, ir) for mul, _ in irreps_gated])
 
-            # TO DO, it's not that safe to directly use the
-            # dictionary
             equivariant_nonlin = Gate(
                 irreps_scalars=irreps_scalars,
                 act_scalars=[
-                    acts[nonlinearity_scalars[ir.p]] for _, ir in irreps_scalars
+                    get_nonlinearity(nonlinearity_scalars[ir.p])
+                    for _, ir in irreps_scalars
                 ],
                 irreps_gates=irreps_gates,
-                act_gates=[acts[nonlinearity_gates[ir.p]] for _, ir in irreps_gates],
+                act_gates=[
+                    get_nonlinearity(nonlinearity_gates[ir.p]) for _, ir in irreps_gates
+                ],
                 irreps_gated=irreps_gated,
             )
 
@@ -116,7 +109,7 @@ class ConvNetLayer(GraphModuleMixin, torch.nn.Module):
             equivariant_nonlin = NormActivation(
                 irreps_in=conv_irreps_out,
                 # norm is an even scalar, so use nonlinearity_scalars[1]
-                scalar_nonlinearity=acts[nonlinearity_scalars[1]],
+                scalar_nonlinearity=get_nonlinearity(nonlinearity_scalars[1]),
                 normalize=True,
                 epsilon=1e-8,
                 bias=False,

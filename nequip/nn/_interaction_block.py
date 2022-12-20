@@ -10,7 +10,7 @@ from e3nn.nn import FullyConnectedNet
 from e3nn.o3 import TensorProduct, Linear, FullyConnectedTensorProduct
 
 from nequip.data import AtomicDataDict
-from nequip.nn.nonlinearities import ShiftedSoftPlus
+from nequip.nn.nonlinearities import get_nonlinearity
 from ._graph_mixin import GraphModuleMixin
 
 
@@ -115,10 +115,7 @@ class InteractionBlock(GraphModuleMixin, torch.nn.Module):
             [self.irreps_in[AtomicDataDict.EDGE_EMBEDDING_KEY].num_irreps]
             + invariant_layers * [invariant_neurons]
             + [tp.weight_numel],
-            {
-                "ssp": ShiftedSoftPlus,
-                "silu": torch.nn.functional.silu,
-            }[nonlinearity_scalars["e"]],
+            get_nonlinearity(nonlinearity_scalars["e"]),
         )
 
         self.tp = tp
