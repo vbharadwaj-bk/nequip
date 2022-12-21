@@ -136,10 +136,12 @@ class RescaleOutput(GraphModuleMixin, torch.nn.Module):
             # Scale then shift
             if self.has_scale:
                 for field in self.scale_keys:
-                    data[field] = data[field] * self.scale_by
+                    if field in data:
+                        data[field] = data[field] * self.scale_by
             if self.has_shift:
                 for field in self.shift_keys:
-                    data[field] = data[field] + self.shift_by
+                    if field in data:
+                        data[field] = data[field] + self.shift_by
             return data
 
     @torch.jit.export
