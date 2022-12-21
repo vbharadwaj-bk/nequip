@@ -188,8 +188,10 @@ class PerSpeciesScaleShift(GraphModuleMixin, torch.nn.Module):
         return data
 
     def update_for_rescale(self, rescale_module):
-        if hasattr(rescale_module, "related_scale_keys"):
-            if self.out_field not in rescale_module.related_scale_keys:
+        if hasattr(rescale_module, "scale_keys"):
+            if self.out_field not in rescale_module.scale_keys:
+                # We aren't working on a field that is scaled by this rescale_module,
+                # so there's nothing to do here--- return
                 return
         if self.arguments_in_dataset_units and rescale_module.has_scale:
             logging.debug(
