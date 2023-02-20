@@ -31,6 +31,7 @@ _DEFAULT_LONG_FIELDS: Set[str] = {
     AtomicDataDict.ATOMIC_NUMBERS_KEY,
     AtomicDataDict.ATOM_TYPE_KEY,
     AtomicDataDict.BATCH_KEY,
+    AtomicDataDict.ATOM_TAG_KEY,
 }
 _DEFAULT_NODE_FIELDS: Set[str] = {
     AtomicDataDict.POSITIONS_KEY,
@@ -41,6 +42,7 @@ _DEFAULT_NODE_FIELDS: Set[str] = {
     AtomicDataDict.FORCE_KEY,
     AtomicDataDict.PER_ATOM_ENERGY_KEY,
     AtomicDataDict.BATCH_KEY,
+    AtomicDataDict.ATOM_TAG_KEY,
 }
 _DEFAULT_EDGE_FIELDS: Set[str] = {
     AtomicDataDict.EDGE_CELL_SHIFT_KEY,
