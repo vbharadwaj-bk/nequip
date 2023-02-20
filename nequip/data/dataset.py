@@ -47,9 +47,10 @@ class AtomicDataset(Dataset):
         self,
         root: str,
         type_mapper: Optional[TypeMapper] = None,
+        pre_transform: Optional[Callable] = None,
     ):
         self.dtype = torch.get_default_dtype()
-        super().__init__(root=root, transform=type_mapper)
+        super().__init__(root=root, transform=type_mapper, pre_transform=pre_transform)
 
     def statistics(
         self,
@@ -132,6 +133,7 @@ class AtomicInMemoryDataset(AtomicDataset):
         AtomicData_options: Dict[str, Any] = {},
         include_frames: Optional[List[int]] = None,
         type_mapper: Optional[TypeMapper] = None,
+        pre_transform: Optional[Callable] = None,
     ):
         # TO DO, this may be simplified
         # See if a subclass defines some inputs
@@ -158,7 +160,9 @@ class AtomicInMemoryDataset(AtomicDataset):
         # Initialize the InMemoryDataset, which runs download and process
         # See https://pytorch-geometric.readthedocs.io/en/latest/notes/create_dataset.html#creating-in-memory-datasets
         # Then pre-process the data if disk files are not found
-        super().__init__(root=root, type_mapper=type_mapper)
+        super().__init__(
+            root=root, type_mapper=type_mapper, pre_transform=pre_transform
+        )
         if self.data is None:
             self.data, include_frames = torch.load(self.processed_paths[0])
             if not np.all(include_frames == self.include_frames):
@@ -269,6 +273,10 @@ class AtomicInMemoryDataset(AtomicDataset):
         data = Batch.from_data_list(data_list)
         del data_list
         del fields
+
+        # apply the pre transform to the batched data, it's more efficient (if possibly higher RAM requirement, but this is preprocessing)
+        if self.pre_transform is not None:
+            data = self.pre_transform(data)
 
         total_MBs = sum(item.numel() * item.element_size() for _, item in data) / (
             1024 * 1024
@@ -463,7 +471,7 @@ class AtomicInMemoryDataset(AtomicDataset):
                 out.append((uniq, counts))
             elif ana_mode == "rms":
                 # root-mean-square
-                out.append((torch.sqrt(torch.mean(arr * arr)),))
+                out.append((torch.sqrt(torch.mean(arr.square())),))
 
             elif ana_mode == "mean_std":
                 # mean and std
@@ -714,6 +722,7 @@ class NpzDataset(AtomicInMemoryDataset):
         AtomicData_options: Dict[str, Any] = {},
         include_frames: Optional[List[int]] = None,
         type_mapper: TypeMapper = None,
+        pre_transform: Optional[Callable] = None,
     ):
         self.key_mapping = key_mapping
         self.npz_fixed_field_keys = npz_fixed_field_keys
@@ -726,6 +735,7 @@ class NpzDataset(AtomicInMemoryDataset):
             AtomicData_options=AtomicData_options,
             include_frames=include_frames,
             type_mapper=type_mapper,
+            pre_transform=pre_transform,
         )
 
     @property
@@ -895,6 +905,7 @@ class ASEDataset(AtomicInMemoryDataset):
         include_frames: Optional[List[int]] = None,
         type_mapper: TypeMapper = None,
         key_mapping: Optional[dict] = None,
+        pre_transform: Optional[Callable] = None,
         include_keys: Optional[List[str]] = None,
     ):
         self.ase_args = {}
@@ -913,6 +924,7 @@ class ASEDataset(AtomicInMemoryDataset):
             AtomicData_options=AtomicData_options,
             include_frames=include_frames,
             type_mapper=type_mapper,
+            pre_transform=pre_transform,
         )
 
     @classmethod
