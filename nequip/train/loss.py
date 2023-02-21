@@ -81,7 +81,7 @@ class Loss:
                     raise NotImplementedError(
                         f"expected float, list or tuple, but get {type(value)}"
                     )
-                logging.debug(f" parsing {coeff} {func}")
+                logging.debug(f" parsing {coeff} x {func} with params {func_params}")
                 self.coeffs[key] = coeff
                 self.funcs[key] = find_loss_function(
                     func,

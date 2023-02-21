@@ -18,9 +18,6 @@ import torch.multiprocessing as mp
 
 from torch_runstats.scatter import scatter_std, scatter_mean
 
-from nequip.utils.torch_geometric import Batch, Dataset
-from nequip.utils.torch_geometric.utils import download_url, extract_zip
-
 import nequip
 from nequip.data import (
     AtomicData,
@@ -30,10 +27,12 @@ from nequip.data import (
     _GRAPH_FIELDS,
     _LONG_FIELDS,
 )
-from nequip.utils.batch_ops import bincount
+from nequip.utils.batch_ops import bincount, nanstd_mean
 from nequip.utils.regressor import solver
 from nequip.utils.savenload import atomic_write
 from nequip.utils.multiprocessing import num_tasks
+from nequip.utils.torch_geometric import Batch, Dataset
+from nequip.utils.torch_geometric.utils import download_url, extract_zip
 from .transforms import TypeMapper
 
 
@@ -464,6 +463,7 @@ class AtomicInMemoryDataset(AtomicDataset):
             ana_mode = modes[ifield]
             # compute statistics
             if ana_mode == "count":
+                assert not arr.is_floating_point(), "count mode is for integers"
                 # count integers
                 uniq, counts = torch.unique(
                     torch.flatten(arr), return_counts=True, sorted=True
@@ -471,12 +471,11 @@ class AtomicInMemoryDataset(AtomicDataset):
                 out.append((uniq, counts))
             elif ana_mode == "rms":
                 # root-mean-square
-                out.append((torch.sqrt(torch.mean(arr.square())),))
+                out.append((torch.sqrt(torch.nanmean(arr.square())),))
 
             elif ana_mode == "mean_std":
                 # mean and std
-                mean = torch.mean(arr, dim=0)
-                std = torch.std(arr, dim=0, unbiased=unbiased)
+                std, mean = nanstd_mean(arr, dim=0, unbiased=unbiased)
                 out.append((mean, std))
 
             elif ana_mode.startswith("per_species_"):
@@ -531,6 +530,8 @@ class AtomicInMemoryDataset(AtomicDataset):
 
         Only makes sense for a graph-level quantity (checked by .statistics).
         """
+        if arr.sum().isnan():
+            raise NotImplementedError("Per-atom statistics don't support label masking")
         # using unique_consecutive handles the non-contiguous selected batch index
         _, N = torch.unique_consecutive(batch, return_counts=True)
         N = N.unsqueeze(-1)
@@ -541,8 +542,7 @@ class AtomicInMemoryDataset(AtomicDataset):
         arr = arr / N
         assert arr.shape == (len(N),) + data_dim
         if ana_mode == "mean_std":
-            mean = torch.mean(arr, dim=0)
-            std = torch.std(arr, unbiased=unbiased, dim=0)
+            std, mean = torch.std_mean(arr, dim=0, unbiased=unbiased)
             return mean, std
         elif ana_mode == "rms":
             return (torch.sqrt(torch.mean(arr.square())),)
@@ -567,6 +567,10 @@ class AtomicInMemoryDataset(AtomicDataset):
 
         For a per-node quantity, computes the expected statistic but for each type instead of over all nodes.
         """
+        if arr.sum().isnan():
+            raise NotImplementedError(
+                "Per-species statistics don't support label masking"
+            )
         N = bincount(atom_types.squeeze(-1), batch)
         assert N.ndim == 2  # [batch, n_type]
         N = N[(N > 0).any(dim=1)]  # deal with non-contiguous batch indexes

@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Tuple
 
 import torch
 
@@ -29,3 +29,20 @@ def bincount(
         return torch.bincount(input, minlength=minlength * num_batch).reshape(
             num_batch, minlength
         )
+
+
+def nanstd_mean(
+    x: torch.Tensor, dim: int, unbiased: bool, keepdim: bool = False
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    if x.sum().isnan():
+        # NaN path:
+        mean = torch.nanmean(x, dim=dim, keepdim=True)
+        variance = torch.nanmean((x - mean).square(), dim=dim, keepdim=keepdim)
+        if unbiased:
+            # Bessel's correction:
+            variance *= x.shape[dim] / (x.shape[dim] - 1)
+        if not keepdim:
+            mean.squeeze_(dim=dim)
+        return variance.sqrt(), mean
+    else:
+        return torch.std_mean(x, dim=dim, unbiased=unbiased, keepdim=keepdim)
