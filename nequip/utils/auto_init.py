@@ -18,7 +18,7 @@ def instantiate_from_cls_name(
     """Initialize a class based on a string class name
 
     Args:
-    module: the module to import the class, i.e. torch.optim
+    module: the module to import the class, i.e. torch.optim. Can be a list, in which case they are in order of priority.
     class_name: the string name of the class, i.e. "CosineAnnealingWarmRestarts"
     positional_args (dict): positional arguments
     optional_args (optional, dict): optional arguments
@@ -37,10 +37,12 @@ def instantiate_from_cls_name(
         raise NameError("class_name type is not defined ")
 
     # first obtain a list of all classes in this module
-    class_list = inspect.getmembers(module, inspect.isclass)
+    if not isinstance(module, list):
+        module = [module]
     class_dict = {}
-    for k, v in class_list:
-        class_dict[k] = v
+    for mod in reversed(module):
+        for k, v in inspect.getmembers(mod, inspect.isclass):
+            class_dict[k] = v
 
     # find the matching class
     the_class = class_dict.get(class_name, None)

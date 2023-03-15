@@ -26,6 +26,7 @@ import numpy as np
 import torch
 from torch_ema import ExponentialMovingAverage
 
+import nequip.utils.optim
 from nequip.data import (
     DataLoader,
     PartialSampler,
@@ -364,14 +365,19 @@ class Trainer:
 
     def init_objects(self):
         # initialize optimizer
+        opt_opt_args = dict(lr=self.learning_rate)
+        if self.optimizer_kwargs is not None:
+            opt_opt_args.update(self.optimizer_kwargs)
         self.optim, self.optimizer_kwargs = instantiate_from_cls_name(
-            module=torch.optim,
+            module=[torch.optim, nequip.utils.optim],
             class_name=self.optimizer_name,
             prefix="optimizer",
-            positional_args=dict(params=self.model.parameters(), lr=self.learning_rate),
+            positional_args=dict(params=self.model.parameters()),
+            optional_args=opt_opt_args,
             all_args=self.kwargs,
-            optional_args=self.optimizer_kwargs,
         )
+        del opt_opt_args
+        self._using_SAM = isinstance(self.optim, nequip.utils.optim.SAM)
 
         self.max_gradient_norm = (
             float(self.max_gradient_norm)
@@ -393,7 +399,11 @@ class Trainer:
                 module=torch.optim.lr_scheduler,
                 class_name=self.lr_scheduler_name,
                 prefix="lr_scheduler",
-                positional_args=dict(optimizer=self.optim),
+                positional_args=dict(
+                    optimizer=self.optim.base_optimizer
+                    if self._using_SAM  # see SAM https://github.com/davda54/sam README.md
+                    else self.optim
+                ),
                 optional_args=self.lr_scheduler_kwargs,
                 all_args=self.kwargs,
             )
@@ -814,11 +824,21 @@ class Trainer:
         # Note that either way all normalization was handled internally by GraphModel via RescaleOutput
 
         if not validation:
-            # Actually do an optimization step, since we're training:
-            loss, loss_contrib = self.loss(pred=out, ref=data_for_loss)
             # see https://pytorch.org/tutorials/recipes/recipes/tuning_guide.html#use-parameter-grad-none-instead-of-model-zero-grad-or-optimizer-zero-grad
             self.optim.zero_grad(set_to_none=True)
+            # Actually do an optimization step, since we're training:
+            loss, loss_contrib = self.loss(pred=out, ref=data_for_loss)
             loss.backward()
+            if self._using_SAM:
+                self.optim.first_step(zero_grad=True)
+                # note that for the second step, which uses the modified
+                # weights from SAM, we do not store the loss for metrics
+                # And we also throw out the output dict
+                # See README.md of https://github.com/davda54/sam also
+                self.loss(
+                    pred=self.model(data_for_loss.copy()),
+                    ref=data_for_loss,
+                )[0].backward()
 
             # See https://stackoverflow.com/a/56069467
             # Has to happen after .backward() so there are grads to clip
@@ -827,13 +847,18 @@ class Trainer:
                     self.model.parameters(), self.max_gradient_norm
                 )
 
-            self.optim.step()
+            if self._using_SAM:
+                # grads get zero'd at start of next loop
+                self.optim.second_step(zero_grad=False)
+            else:
+                self.optim.step()
 
             if self.use_ema:
                 self.ema.update()
 
             if self.lr_scheduler_name == "CosineAnnealingWarmRestarts":
                 self.lr_sched.step(self.iepoch + self.ibatch / self.n_batches)
+        # end train block
 
         with torch.no_grad():
             if validation:
