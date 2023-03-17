@@ -1,8 +1,30 @@
-# Example of using SAM optimizer
+# Example of how to use Sharpness Aware Minimization (SAM) when training
+# In particular, this can be used in combination with Allegro (https://github.com/mir-group/allegro)
+# as described in:
+#
+#     Allegro-Legato: Scalable, Fast, and Robust Neural-Network Quantum Molecular Dynamics via Sharpness-Aware Minimization
+#     Hikaru Ibayashi, Taufeq Mohammed Razakh, Liqiu Yang, Thomas Linker, Marco Olguin, Shinnosuke Hattori, Ye Luo, Rajiv K. Kalia, Aiichiro Nakano, Ken-ichi Nomura, Priya Vashishta
+#     https://arxiv.org/abs/2303.08169
+#
+# Please additionally cite the above paper when using SAM here.
+
+# optimizer
+# SAM can be specified as the optimizer:
+optimizer_name: SAM
+# SAM's own parameters can be set:
+optimizer_SAM_rho: 0.05
+optimizer_SAM_adaptive: false
+# The base optimizer must be specified:
+optimizer_base_optimizer: !!python/name:torch.optim.adam.Adam ''
+# And its parameters can also be set:
+# (this propagates to the inner Adam optimizer)
+optimizer_amsgrad: false
+
+# -- Sections below are copied from `minimal.yaml` for a simple runnable example --
 
 # general
 root: results/aspirin
-run_name: minimal
+run_name: minimal-sam
 seed: 123
 dataset_seed: 456
 
@@ -14,19 +36,15 @@ parity: true
 num_features: 16
 
 # data set
-# the keys used need to be stated at least once in key_mapping, npz_fixed_field_keys or npz_keys
-# key_mapping is used to map the key in the npz file to the NequIP default values (see data/_key.py)
-# all arrays are expected to have the shape of (nframe, natom, ?) except the fixed fields
-# note that if your data set uses pbc, you need to also pass an array that maps to the nequip "pbc" key
-dataset: npz                                                                       # type of data set, can be npz or ase
-dataset_url: http://quantum-machine.org/gdml/data/npz/aspirin_ccsd.zip             # url to download the npz. optional
-dataset_file_name: ./benchmark_data/aspirin_ccsd-train.npz                         # path to data set file
+dataset: npz
+dataset_url: http://quantum-machine.org/gdml/data/npz/aspirin_ccsd.zip
+dataset_file_name: ./benchmark_data/aspirin_ccsd-train.npz
 key_mapping:
-  z: atomic_numbers                                                                # atomic species, integers
-  E: total_energy                                                                  # total potential eneriges to train to
-  F: forces                                                                        # atomic forces to train to
-  R: pos                                                                           # raw atomic positions
-npz_fixed_field_keys:                                                              # fields that are repeated across different examples
+  z: atomic_numbers
+  E: total_energy
+  F: forces
+  R: pos
+npz_fixed_field_keys:
   - atomic_numbers
 
 chemical_symbols:
@@ -47,9 +65,3 @@ max_epochs: 10
 
 # loss function
 loss_coeffs: forces
-
-# optimizer
-optimizer_name: SAM
-optimizer_SAM_rho: 0.07  # can configure SAM itself here
-optimizer_base_optimizer: !!python/name:torch.optim.adam.Adam ''
-optimizer_amsgrad: false  # propagates to the inner Adam optimizer
