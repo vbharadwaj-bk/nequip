@@ -835,7 +835,12 @@ class Trainer:
                 # weights from SAM, we do not store the loss for metrics
                 # And we also throw out the output dict
                 # See README.md of https://github.com/davda54/sam also
-                # TODO: report this second step SAM loss under a separate key, maybe
+                # Again note that we do not save this loss to pass to
+                # loss metrics / logging, since this loss is largely
+                # meaningless and the above loss (before the first
+                # step) is the one that tracks with the error metrics
+                # on the model before the first optimization weight
+                # update step. (Ref. personal discussions.)
                 self.loss(
                     pred=self.model(data_for_loss.copy()),
                     ref=data_for_loss,
