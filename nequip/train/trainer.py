@@ -835,6 +835,7 @@ class Trainer:
                 # weights from SAM, we do not store the loss for metrics
                 # And we also throw out the output dict
                 # See README.md of https://github.com/davda54/sam also
+                # TODO: report this second step SAM loss under a separate key, maybe
                 self.loss(
                     pred=self.model(data_for_loss.copy()),
                     ref=data_for_loss,
@@ -843,6 +844,10 @@ class Trainer:
             # See https://stackoverflow.com/a/56069467
             # Has to happen after .backward() so there are grads to clip
             if self.max_gradient_norm < float("inf"):
+                if self._using_SAM:
+                    raise NotImplementedError(
+                        "Gradient clipping is not currently supported when SAM is enabled"
+                    )
                 torch.nn.utils.clip_grad_norm_(
                     self.model.parameters(), self.max_gradient_norm
                 )
