@@ -12,6 +12,13 @@ class EarlyStopping:
     1. a value lower than a defined lower bound
     2. a value higher than a defined upper bound
     3. a value hasn't decreased for x epochs within delta range
+    4. a custom condition
+
+    Note:
+        Custom conditions that are stateful are NOT presently supported
+        and will not work correctly under training restarts. Please file
+        an issue if stateful custom early stopping conditions are needed
+        for your workflow.
 
     Args:
 
@@ -19,6 +26,9 @@ class EarlyStopping:
     upper_bounds (dict): define the key and lower bound for condition 2
     patiences (dict): defined the x epochs for condition 3
     delta (dict): defined the delta range for condition 3. defaults are 0.0
+    custom_events (list): a list of callables taking the metrics dict that return
+                          a bool of whether they have triggered and a string explaining
+                          why.
     cumulative_delta (bool): if True, the minimum value recorded for condition 3
                              will not be updated when the newer value only decreases
                              for a tiny value (< delta). default False
@@ -30,12 +40,14 @@ class EarlyStopping:
         upper_bounds: dict = {},
         patiences: dict = {},
         delta: dict = {},
+        custom_events: list = [],
         cumulative_delta: bool = False,
     ):
 
         self.patiences = deepcopy(patiences)
         self.lower_bounds = deepcopy(lower_bounds)
         self.upper_bounds = deepcopy(upper_bounds)
+        self.custom_events = custom_events
         self.cumulative_delta = cumulative_delta
 
         self.delta = {}
@@ -93,6 +105,14 @@ class EarlyStopping:
         for key, bound in self.upper_bounds.items():
             if metrics[key] > bound:
                 stop_args += f" {key} is larger than {bound}"
+                stop = True
+
+        for custom_event in self.custom_events:
+            custom_event_triggered, custom_event_msg = custom_event(metrics)
+            assert isinstance(custom_event_triggered, bool)
+            if custom_event_triggered:
+                assert isinstance(custom_event_msg, str)
+                stop_args += f"{custom_event} is triggered: '{custom_event_msg}'"
                 stop = True
 
         return stop, stop_args, debug_args

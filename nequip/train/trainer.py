@@ -423,7 +423,10 @@ class Trainer:
                         new_dict[f"{VALIDATION}_{k}"] = item[k]
                 kwargs[key] = new_dict
                 n_args += len(new_dict)
+            elif key == "custom_events":
+                n_args += 1
         self.early_stopping_conds = EarlyStopping(**kwargs) if n_args > 0 else None
+        del n_args
 
         if self.use_ema and self.ema is None:
             self.ema = ExponentialMovingAverage(
